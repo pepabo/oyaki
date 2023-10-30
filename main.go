@@ -56,7 +56,9 @@ func main() {
 
 	log.Printf("starting oyaki %s\n", getVersion())
 	http.HandleFunc("/", proxy)
-	http.ListenAndServe(":8081", nil)
+	if err := http.ListenAndServe(":8080", nil); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func getOriginImage(ctx context.Context, req *http.Request) (*http.Response, error) {
