@@ -2,12 +2,19 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"image"
 	"image/jpeg"
 	"io"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
-func convert(src io.Reader, q int) (*bytes.Buffer, error) {
+func convert(ctx context.Context, src io.Reader, q int) (*bytes.Buffer, error) {
+	var span trace.Span
+	ctx, span = tracer.Start(ctx, "convert")
+	defer span.End()
+
 	img, _, err := image.Decode(src)
 	if err != nil {
 		return nil, err

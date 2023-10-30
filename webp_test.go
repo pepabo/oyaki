@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -8,6 +9,7 @@ import (
 )
 
 func TestProxyWebP(t *testing.T) {
+	ctx := context.Background()
 	ts := httptest.NewServer(http.HandlerFunc(proxy))
 
 	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -18,7 +20,7 @@ func TestProxyWebP(t *testing.T) {
 	url := ts.URL + "/oyaki.jpg.webp"
 
 	req, _ := http.NewRequest("GET", url, nil)
-	resp, err := doWebp(req)
+	resp, err := doWebp(ctx, req)
 	if err != nil {
 		t.Fatal(err)
 	} else {
@@ -33,6 +35,7 @@ func TestProxyWebP(t *testing.T) {
 }
 
 func TestConvJPG2WebP(t *testing.T) {
+	ctx := context.Background()
 	ts := httptest.NewServer(http.HandlerFunc(proxy))
 
 	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -43,12 +46,12 @@ func TestConvJPG2WebP(t *testing.T) {
 	url := ts.URL + "/oyaki.jpg.webp"
 
 	req, _ := http.NewRequest("GET", url, nil)
-	resp, err := doWebp(req)
+	resp, err := doWebp(ctx, req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	_, err = convWebp(resp.Body, []string{})
+	_, err = convWebp(ctx, resp.Body, []string{})
 	if err != nil {
 		t.Fatal(err)
 	}

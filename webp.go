@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -9,9 +10,15 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
-func doWebp(req *http.Request) (*http.Response, error) {
+func doWebp(ctx context.Context, req *http.Request) (*http.Response, error) {
+	var span trace.Span
+	ctx, span = tracer.Start(ctx, "doWebp")
+	defer span.End()
+
 	var orgRes *http.Response
 	orgURL := req.URL
 	newPath := orgURL.Path[:len(orgURL.Path)-len(".webp")]
@@ -38,7 +45,11 @@ func doWebp(req *http.Request) (*http.Response, error) {
 	return orgRes, nil
 }
 
-func convWebp(src io.Reader, params []string) (*bytes.Buffer, error) {
+func convWebp(ctx context.Context, src io.Reader, params []string) (*bytes.Buffer, error) {
+	var span trace.Span
+	ctx, span = tracer.Start(ctx, "convWebp")
+	defer span.End()
+
 	f, err := os.CreateTemp("/tmp", "")
 	if err != nil {
 		return nil, err

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -15,6 +16,8 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 var client http.Client
@@ -23,6 +26,13 @@ var quality = 90
 var version = ""
 
 func main() {
+	ctx := context.Background()
+	//タイムアウトを設定
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	shutdown := initProvider(ctx)
+	defer cancel()
+	defer shutdown()
+
 	var ver bool
 
 	flag.BoolVar(&ver, "version", false, "show version")
@@ -46,10 +56,21 @@ func main() {
 
 	log.Printf("starting oyaki %s\n", getVersion())
 	http.HandleFunc("/", proxy)
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe(":8081", nil)
+}
+
+func getOriginImage(ctx context.Context, req *http.Request) (*http.Response, error) {
+	ctx, span := tracer.Start(ctx, "getOriginImage")
+	defer span.End()
+	return client.Do(req)
 }
 
 func proxy(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var span trace.Span
+	ctx, span = tracer.Start(ctx, "httpRequest")
+	defer span.End()
+
 	path := r.URL.RequestURI()
 	if path == "/" {
 		fmt.Fprintln(w, "Oyaki lives!")
@@ -82,14 +103,14 @@ func proxy(w http.ResponseWriter, r *http.Request) {
 	var orgRes *http.Response
 	pathExt := filepath.Ext(req.URL.Path)
 	if pathExt == ".webp" {
-		orgRes, err = doWebp(req)
+		orgRes, err = doWebp(ctx, req)
 		if err != nil {
 			http.Error(w, "Get origin failed", http.StatusBadGateway)
 			log.Printf("Get origin failed. %v\n", err)
 			return
 		}
 	} else {
-		orgRes, err = client.Do(req)
+		orgRes, err = getOriginImage(ctx, req)
 		if err != nil {
 			http.Error(w, "Get origin failed", http.StatusBadGateway)
 			log.Printf("Get origin failed. %v\n", err)
@@ -136,7 +157,7 @@ func proxy(w http.ResponseWriter, r *http.Request) {
 	}
 	var buf *bytes.Buffer
 	if pathExt == ".webp" {
-		buf, err = convWebp(orgRes.Body, []string{})
+		buf, err = convWebp(ctx, orgRes.Body, []string{})
 		if err != nil {
 			http.Error(w, "image convert failed", http.StatusInternalServerError)
 			log.Printf("Read origin body failed. %v\n", err)
@@ -145,7 +166,7 @@ func proxy(w http.ResponseWriter, r *http.Request) {
 		defer buf.Reset()
 		w.Header().Set("Content-Type", "image/webp")
 	} else {
-		buf, err = convert(orgRes.Body, quality)
+		buf, err = convert(ctx, orgRes.Body, quality)
 		if err != nil {
 			http.Error(w, "Image convert failed", http.StatusInternalServerError)
 			log.Printf("Image convert failed. %v\n", err)
