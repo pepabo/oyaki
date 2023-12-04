@@ -158,6 +158,7 @@ func proxy(w http.ResponseWriter, r *http.Request) {
 			defer buf.Reset()
 			w.Header().Set("Content-Type", "image/jpeg")
 		}
+		defer buf.Reset()
 	} else {
 		buf, err = convert(orgRes.Body, quality)
 		if err != nil {
