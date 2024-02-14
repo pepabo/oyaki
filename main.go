@@ -88,26 +88,9 @@ func proxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		if orgRes == nil {
-			http.Error(w, "Get origin failed", http.StatusForbidden)
-			log.Printf("Get origin failed. %v\n", err)
-			return
-
-		} else {
-			// err が存在し、かつ orgRes が存在する場合がある
-			http.Error(w, "Get origin failed", orgRes.StatusCode)
-			log.Printf("Get origin failed. %v\n", err)
-			return
-
-		}
-	}
-
-	// err が nil で orgRes が nil の場合がある
-	if orgRes == nil {
 		http.Error(w, "Get origin failed", http.StatusForbidden)
 		log.Printf("Get origin failed. %v\n", err)
 		return
-
 	}
 
 	if orgRes.StatusCode == http.StatusNotFound || orgRes.StatusCode == http.StatusForbidden {
