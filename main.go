@@ -87,7 +87,13 @@ func proxy(w http.ResponseWriter, r *http.Request) {
 		orgRes, err = client.Do(req)
 	}
 
-	if err != nil || orgRes.StatusCode == http.StatusNotFound || orgRes.StatusCode == http.StatusForbidden {
+	if err != nil {
+		http.Error(w, "Get origin failed", http.StatusForbidden)
+		log.Printf("Get origin failed. %v\n", err)
+		return
+	}
+
+	if orgRes.StatusCode == http.StatusNotFound || orgRes.StatusCode == http.StatusForbidden {
 		http.Error(w, "Get origin failed", orgRes.StatusCode)
 		log.Printf("Get origin failed. %v\n", err)
 		return

@@ -33,7 +33,11 @@ func doWebp(req *http.Request) (*http.Response, error) {
 	}
 	if orgRes.StatusCode != 200 && orgRes.StatusCode != 304 {
 		log.Println(orgRes.Status)
-		return nil, err
+		return nil, fmt.Errorf("origin response is not 200 or 304")
+	}
+
+	if orgRes == nil {
+		return nil, fmt.Errorf("origin response is not found")
 	}
 	return orgRes, nil
 }
