@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+
+	"github.com/disintegration/imaging"
 )
 
 func doWebp(req *http.Request) (*http.Response, error) {
@@ -50,10 +52,15 @@ func convWebp(src io.Reader, params []string) (*bytes.Buffer, error) {
 	defer f.Close()
 	defer os.Remove(f.Name())
 
-	_, err = io.Copy(f, src)
+	img, err := imaging.Decode(src, imaging.AutoOrientation(true))
 	if err != nil {
 		return nil, err
 	}
+
+	if err := imaging.Encode(f, img, imaging.JPEG); err != nil {
+		return nil, err
+	}
+
 	params = append(params, "-quiet", "-mt", "-jpeg_like", f.Name(), "-o", "-")
 	out, err := exec.Command("cwebp", params...).Output()
 	if err != nil {
