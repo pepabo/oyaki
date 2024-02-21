@@ -2,13 +2,14 @@ package main
 
 import (
 	"bytes"
-	"image"
 	"image/jpeg"
 	"io"
+
+	"github.com/disintegration/imaging"
 )
 
 func convert(src io.Reader, q int) (*bytes.Buffer, error) {
-	img, _, err := image.Decode(src)
+	img, err := imaging.Decode(src, imaging.AutoOrientation(true))
 	if err != nil {
 		return nil, err
 	}
