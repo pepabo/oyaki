@@ -20,3 +20,7 @@ Environment variables bellow are available.
 - `OYAKI_ORIGIN_HOST`: Your origin host. Example: `example.com` (required)
 - `OYAKI_ORIGIN_SCHEME`: Scheme to request to your origin. Default: `https`
 - `OYAKI_QUALITY`: Image quality. Default: `90`
+
+### Use OpenTelemetry
+
+- `OTEL_EXPORTER_OTLP_ENDPOINT`: OpenTelemetry collector endpoint. Example: `localhost:4317`

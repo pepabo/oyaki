@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,7 +19,9 @@ func TestProxyWebP(t *testing.T) {
 	url := ts.URL + "/oyaki.jpg.webp"
 
 	req, _ := http.NewRequest("GET", url, nil)
-	resp, err := doWebp(req)
+
+	ctx := context.Background()
+	resp, err := doWebp(ctx, req)
 	if err != nil {
 		t.Fatal(err)
 	} else {
@@ -43,12 +46,13 @@ func TestConvJPG2WebP(t *testing.T) {
 	url := ts.URL + "/oyaki.jpg.webp"
 
 	req, _ := http.NewRequest("GET", url, nil)
-	resp, err := doWebp(req)
+	ctx := context.Background()
+	resp, err := doWebp(ctx, req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	_, err = convWebp(resp.Body, []string{})
+	_, err = convWebp(ctx, resp.Body, []string{})
 	if err != nil {
 		t.Fatal(err)
 	}
