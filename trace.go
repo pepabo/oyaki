@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"log"
+	"os"
+	"strconv"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -35,9 +37,19 @@ func initProvider(ctx context.Context) func() {
 	traceExp, err := otlptrace.New(ctx, traceClient)
 	handleErr(err, "Failed to create the collector trace exporter")
 
+	samplingRate := os.Getenv("OTEL_TRACES_SAMPLING_RATE")
+	if samplingRate == "" {
+		samplingRate = "1"
+	}
+	samplingRateFloat, err := strconv.ParseFloat(samplingRate, 64)
+	if err != nil {
+		handleErr(err, "Failed to parse OTEL_TRACES_SAMPLING_RATE as float64, using default 1.0")
+	}
+	sampler := sdktrace.ParentBased(sdktrace.TraceIDRatioBased(samplingRateFloat))
+
 	bsp := sdktrace.NewBatchSpanProcessor(traceExp)
 	tracerProvider := sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithSampler(sampler),
 		sdktrace.WithResource(res),
 		sdktrace.WithSpanProcessor(bsp),
 	)
