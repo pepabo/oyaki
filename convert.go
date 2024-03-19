@@ -7,12 +7,10 @@ import (
 	"io"
 
 	"github.com/disintegration/imaging"
-	"go.opentelemetry.io/otel/trace"
 )
 
 func convert(ctx context.Context, src io.Reader, q int) (*bytes.Buffer, error) {
-	var span trace.Span
-	ctx, span = tracer.Start(ctx, "convert")
+	ctx, span := tracer.Start(ctx, "convert")
 	defer span.End()
 
 	img, err := imaging.Decode(src, imaging.AutoOrientation(true))

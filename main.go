@@ -16,8 +16,6 @@ import (
 	"strconv"
 	"syscall"
 	"time"
-
-	"go.opentelemetry.io/otel/trace"
 )
 
 var client http.Client
@@ -63,8 +61,7 @@ func main() {
 
 func proxy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var span trace.Span
-	ctx, span = tracer.Start(ctx, "httpRequest")
+	ctx, span := tracer.Start(ctx, "httpRequest")
 	defer span.End()
 
 	path := r.URL.RequestURI()

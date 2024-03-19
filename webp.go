@@ -12,12 +12,10 @@ import (
 	"os/exec"
 
 	"github.com/disintegration/imaging"
-	"go.opentelemetry.io/otel/trace"
 )
 
 func doWebp(ctx context.Context, req *http.Request) (*http.Response, error) {
-	var span trace.Span
-	ctx, span = tracer.Start(ctx, "doWebp")
+	ctx, span := tracer.Start(ctx, "doWebp")
 	defer span.End()
 
 	var orgRes *http.Response
@@ -51,8 +49,7 @@ func doWebp(ctx context.Context, req *http.Request) (*http.Response, error) {
 }
 
 func convWebp(ctx context.Context, src io.Reader, params []string) (*bytes.Buffer, error) {
-	var span trace.Span
-	ctx, span = tracer.Start(ctx, "convWebp")
+	ctx, span := tracer.Start(ctx, "convWebp")
 	defer span.End()
 
 	f, err := os.CreateTemp("/tmp", "")
