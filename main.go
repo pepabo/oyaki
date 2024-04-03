@@ -15,17 +15,22 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambda"
 )
 
 var client http.Client
 var orgSrvURL string
 var quality = 90
 var version = ""
+var onLambda = false
 
 func main() {
 	var ver bool
 
 	flag.BoolVar(&ver, "version", false, "show version")
+	flag.BoolVar(&onLambda, "lambda", true, "runs on lambda")
 	flag.Parse()
 
 	if ver {
