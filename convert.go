@@ -16,7 +16,7 @@ func convert(src io.Reader, q int) (*bytes.Buffer, error) {
 
 	buf := new(bytes.Buffer)
 
-	if err := jpeg.Encode(buf, img, &jpeg.Options{Quality: quality}); err != nil {
+	if err := jpeg.Encode(buf, img, &jpeg.Options{Quality: q}); err != nil {
 		return nil, err
 	}
 

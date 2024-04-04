@@ -10,7 +10,8 @@ import (
 func TestRoot(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
-	proxy(rec, req)
+	ph := &ProxyHandler{}
+	ph.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("got http %d, want %d", rec.Code, http.StatusOK)
@@ -18,20 +19,18 @@ func TestRoot(t *testing.T) {
 }
 
 func TestRequestHeader(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(proxy))
-	defer ts.Close()
-
 	cxff := "127.0.0.1"
-	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "./testdata/oyaki.jpg")
+	origin, ts := setupOriginAndOyaki(
+		func(w http.ResponseWriter, r *http.Request) {
+			http.ServeFile(w, r, "./testdata/oyaki.jpg")
 
-		sxff := r.Header.Get("X-Forwarded-For")
-		if sxff != cxff {
-			t.Errorf("X-Forwarded-For header is %s, want %s", sxff, cxff)
-		}
-	}))
-
-	orgSrvURL = origin.URL
+			sxff := r.Header.Get("X-Forwarded-For")
+			if sxff != cxff {
+				t.Errorf("X-Forwarded-For header is %s, want %s", sxff, cxff)
+			}
+		})
+	defer ts.Close()
+	defer origin.Close()
 
 	req, err := http.NewRequest("GET", ts.URL+"/oyaki.jpg", nil)
 	if err != nil {
@@ -47,13 +46,11 @@ func TestRequestHeader(t *testing.T) {
 }
 
 func TestProxyJPEG(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(proxy))
-
-	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	origin, ts := setupOriginAndOyaki(func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "./testdata/oyaki.jpg")
-	}))
-
-	orgSrvURL = origin.URL
+	})
+	defer ts.Close()
+	defer origin.Close()
 
 	url := ts.URL + "/oyaki.jpg"
 
@@ -62,7 +59,7 @@ func TestProxyJPEG(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	orgRes, err := http.Get(orgSrvURL)
+	orgRes, err := http.Get(origin.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,15 +78,13 @@ func TestProxyJPEG(t *testing.T) {
 }
 
 func TestOriginNotModifiedJPEG(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(proxy))
-
-	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	origin, ts := setupOriginAndOyaki(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Last-Modified", "2023-01-01T00:00:00")
 		w.WriteHeader(http.StatusNotModified)
 		http.ServeFile(w, r, "./testdata/oyaki.jpg")
-	}))
-
-	orgSrvURL = origin.URL
+	})
+	defer ts.Close()
+	defer origin.Close()
 
 	url := ts.URL + "/oyaki.jpg"
 
@@ -98,7 +93,7 @@ func TestOriginNotModifiedJPEG(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = http.Get(orgSrvURL)
+	_, err = http.Get(origin.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,13 +108,12 @@ func TestOriginNotModifiedJPEG(t *testing.T) {
 }
 
 func TestProxyPNG(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(proxy))
-
-	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	origin, ts := setupOriginAndOyaki(func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "./testdata/corn.png")
-	}))
+	})
+	defer ts.Close()
+	defer origin.Close()
 
-	orgSrvURL = origin.URL
 	url := ts.URL + "/corn.png"
 
 	res, err := http.Get(url)
@@ -127,7 +121,7 @@ func TestProxyPNG(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	orgRes, err := http.Get(orgSrvURL)
+	orgRes, err := http.Get(origin.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,13 +140,11 @@ func TestProxyPNG(t *testing.T) {
 }
 
 func TestOriginNotExist(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(proxy))
-
-	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	origin, ts := setupOriginAndOyaki(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "404 Not Found", http.StatusNotFound)
-	}))
-
-	orgSrvURL = origin.URL
+	})
+	defer ts.Close()
+	defer origin.Close()
 
 	url := ts.URL + "/none.jpg"
 
@@ -167,13 +159,11 @@ func TestOriginNotExist(t *testing.T) {
 }
 
 func TestOriginForbidden(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(proxy))
-
-	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	origin, ts := setupOriginAndOyaki(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "403 Forbidden", http.StatusForbidden)
-	}))
-
-	orgSrvURL = origin.URL
+	})
+	defer ts.Close()
+	defer origin.Close()
 
 	url := ts.URL + "/forbidden.jpg"
 
@@ -188,13 +178,11 @@ func TestOriginForbidden(t *testing.T) {
 }
 
 func TestOriginBadGateWay(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(proxy))
-
-	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	origin, ts := setupOriginAndOyaki(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "502 Bad Gateway", http.StatusBadGateway)
-	}))
-
-	orgSrvURL = origin.URL
+	})
+	defer ts.Close()
+	defer origin.Close()
 
 	url := ts.URL + "/bad.jpg"
 
@@ -209,15 +197,14 @@ func TestOriginBadGateWay(t *testing.T) {
 }
 
 func TestOriginNotModifiedPNG(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(proxy))
-
-	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	origin, ts := setupOriginAndOyaki(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Last-Modified", "2023-01-01T00:00:00")
 		w.WriteHeader(http.StatusNotModified)
 		http.ServeFile(w, r, "./testdata/corn.png")
-	}))
+	})
+	defer ts.Close()
+	defer origin.Close()
 
-	orgSrvURL = origin.URL
 	url := ts.URL + "/corn.png"
 
 	res, err := http.Get(url)
@@ -225,7 +212,7 @@ func TestOriginNotModifiedPNG(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = http.Get(orgSrvURL)
+	_, err = http.Get(origin.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -243,15 +230,28 @@ func TestOriginNotModifiedPNG(t *testing.T) {
 	}
 }
 
+func setupOriginAndOyaki(
+	originHandler func(http.ResponseWriter, *http.Request),
+) (*httptest.Server, *httptest.Server) {
+	origin := httptest.NewServer(http.HandlerFunc(originHandler))
+	originServerURL := origin.URL
+	oyakiHandler := &ProxyHandler{
+		originConfig: OriginConfig{
+			ServerURL: originServerURL,
+		},
+	}
+	oyaki := httptest.NewServer(oyakiHandler)
+	return origin, oyaki
+}
+
 func BenchmarkProxyJpeg(b *testing.B) {
 	b.ResetTimer()
-	ts := httptest.NewServer(http.HandlerFunc(proxy))
 
-	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	origin, ts := setupOriginAndOyaki(func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "./testdata/oyaki.jpg")
-	}))
-
-	orgSrvURL = origin.URL
+	})
+	defer ts.Close()
+	defer origin.Close()
 
 	url := ts.URL + "/oyaki.jpg"
 
@@ -270,13 +270,13 @@ func BenchmarkProxyJpeg(b *testing.B) {
 
 func BenchmarkProxyPNG(b *testing.B) {
 	b.ResetTimer()
-	ts := httptest.NewServer(http.HandlerFunc(proxy))
 
-	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	origin, ts := setupOriginAndOyaki(func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "./testdata/corn.png")
-	}))
+	})
+	defer ts.Close()
+	defer origin.Close()
 
-	orgSrvURL = origin.URL
 	url := ts.URL + "/corn.png"
 
 	for i := 0; i < b.N; i++ {

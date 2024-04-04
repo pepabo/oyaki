@@ -19,9 +19,11 @@ import (
 	"github.com/fujiwara/ridge"
 )
 
+type OriginConfig struct {
+	ServerURL string
+}
+
 var client http.Client
-var orgSrvURL string
-var quality = 90
 var version = ""
 
 func main() {
@@ -35,31 +37,45 @@ func main() {
 		return
 	}
 
+	ph := &ProxyHandler{}
 	orgScheme := os.Getenv("OYAKI_ORIGIN_SCHEME")
 	orgHost := os.Getenv("OYAKI_ORIGIN_HOST")
 	if orgScheme == "" {
 		orgScheme = "https"
 	}
-	orgSrvURL = orgScheme + "://" + orgHost
+	ph.originConfig = OriginConfig{
+		ServerURL: orgScheme + "://" + orgHost,
+	}
 
 	if q := os.Getenv("OYAKI_QUALITY"); q != "" {
-		quality, _ = strconv.Atoi(q)
+		quality, err := strconv.Atoi(q)
+		if err != nil {
+			// defaulting
+			quality = 90
+		}
+		ph.Quality = quality
 	}
 
 	log.Printf("starting oyaki %s\n", getVersion())
 	mux := http.NewServeMux()
-	mux.Handle("/", http.HandlerFunc(proxy))
+	mux.Handle("/", ph)
 	ridge.Run(":8080", "/", mux)
 }
 
-func proxy(w http.ResponseWriter, r *http.Request) {
+type ProxyHandler struct {
+	// originConfigは環境変数で一度読み込まれたあとは書き換わらない
+	originConfig OriginConfig
+	Quality      int
+}
+
+func (ph *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.RequestURI()
 	if path == "/" {
 		fmt.Fprintln(w, "Oyaki lives!")
 		return
 	}
 
-	orgURL, err := url.Parse(orgSrvURL + path)
+	orgURL, err := url.Parse(ph.originConfig.ServerURL + path)
 	if err != nil {
 		http.Error(w, "Invalid origin URL", http.StatusBadRequest)
 		log.Printf("Invalid origin URL. %v\n", err)
@@ -158,7 +174,7 @@ func proxy(w http.ResponseWriter, r *http.Request) {
 			// if err, normally convertion will be proceeded
 			body = io.NopCloser(bytes.NewBuffer(resBytes))
 			defer body.Close()
-			buf, err = convert(body, quality)
+			buf, err = convert(body, ph.Quality)
 			if err != nil {
 				http.Error(w, "Image convert failed", http.StatusInternalServerError)
 				log.Printf("Image convert failed. %v\n", err)
@@ -168,7 +184,7 @@ func proxy(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "image/jpeg")
 		}
 	} else {
-		buf, err = convert(orgRes.Body, quality)
+		buf, err = convert(orgRes.Body, ph.Quality)
 		if err != nil {
 			http.Error(w, "Image convert failed", http.StatusInternalServerError)
 			log.Printf("Image convert failed. %v\n", err)
