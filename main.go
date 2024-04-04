@@ -16,21 +16,18 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/aws/aws-lambda-go/events"
-	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/fujiwara/ridge"
 )
 
 var client http.Client
 var orgSrvURL string
 var quality = 90
 var version = ""
-var onLambda = false
 
 func main() {
 	var ver bool
 
 	flag.BoolVar(&ver, "version", false, "show version")
-	flag.BoolVar(&onLambda, "lambda", true, "runs on lambda")
 	flag.Parse()
 
 	if ver {
@@ -50,8 +47,9 @@ func main() {
 	}
 
 	log.Printf("starting oyaki %s\n", getVersion())
-	http.HandleFunc("/", proxy)
-	http.ListenAndServe(":8080", nil)
+	mux := http.NewServeMux()
+	mux.Handle("/", http.HandlerFunc(proxy))
+	ridge.Run(":8080", "/", mux)
 }
 
 func proxy(w http.ResponseWriter, r *http.Request) {
