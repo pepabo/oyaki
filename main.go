@@ -68,13 +68,13 @@ func main() {
 		ServerURL: orgScheme + "://" + orgHost,
 	}
 
+	// defaulting
+	ph.Quality = 90
 	if q := os.Getenv("OYAKI_QUALITY"); q != "" {
 		quality, err := strconv.Atoi(q)
-		if err != nil {
-			// defaulting
-			quality = 90
+		if err == nil {
+			ph.Quality = quality
 		}
-		ph.Quality = quality
 	}
 
 	logger.InfoContext(ctx, "starting oyaki", "version", getVersion())
