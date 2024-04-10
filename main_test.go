@@ -2,6 +2,7 @@ package main
 
 import (
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -239,6 +240,7 @@ func setupOriginAndOyaki(
 		originConfig: OriginConfig{
 			ServerURL: originServerURL,
 		},
+		logger: slog.New(slog.NewJSONHandler(io.Discard, nil)),
 	}
 	oyaki := httptest.NewServer(oyakiHandler)
 	return origin, oyaki

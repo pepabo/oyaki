@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"io"
+	"log/slog"
 	"net/http"
 	"testing"
 )
@@ -16,7 +18,7 @@ func TestProxyWebP(t *testing.T) {
 	url := ts.URL + "/oyaki.jpg.webp"
 
 	req, _ := http.NewRequest("GET", url, nil)
-	resp, err := doWebp(req)
+	resp, err := doWebp(slog.New(slog.NewTextHandler(io.Discard, nil)), req)
 	if err != nil {
 		t.Fatal(err)
 	} else {
@@ -38,14 +40,14 @@ func TestConvJPG2WebP(t *testing.T) {
 	defer origin.Close()
 
 	url := ts.URL + "/oyaki.jpg.webp"
-
+	nopLogger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	req, _ := http.NewRequest("GET", url, nil)
-	resp, err := doWebp(req)
+	resp, err := doWebp(nopLogger, req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	_, err = convWebp(resp.Body, []string{})
+	_, err = convWebp(context.Background(), nopLogger, resp.Body, []string{})
 	if err != nil {
 		t.Fatal(err)
 	}

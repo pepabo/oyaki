@@ -2,19 +2,22 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
+
+	"log/slog"
 
 	"github.com/fujiwara/ridge"
 )
@@ -27,6 +30,22 @@ var client http.Client
 var version = ""
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	logLevel := slog.LevelInfo
+	if v := os.Getenv("OYAKI_LOGLEVEL"); v != "" {
+		level := strings.ToLower(v)
+		switch level {
+		case "debug":
+			logLevel = slog.LevelDebug
+		case "warn":
+			logLevel = slog.LevelWarn
+		case "error":
+			logLevel = slog.LevelError
+		}
+	}
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel}))
 	var ver bool
 
 	flag.BoolVar(&ver, "version", false, "show version")
@@ -37,7 +56,9 @@ func main() {
 		return
 	}
 
-	ph := &ProxyHandler{}
+	ph := &ProxyHandler{
+		logger: logger,
+	}
 	orgScheme := os.Getenv("OYAKI_ORIGIN_SCHEME")
 	orgHost := os.Getenv("OYAKI_ORIGIN_HOST")
 	if orgScheme == "" {
@@ -56,13 +77,14 @@ func main() {
 		ph.Quality = quality
 	}
 
-	log.Printf("starting oyaki %s\n", getVersion())
+	logger.InfoContext(ctx, "starting oyaki", "version", getVersion())
 	mux := http.NewServeMux()
 	mux.Handle("/", ph)
-	ridge.Run(":8080", "/", mux)
+	ridge.RunWithContext(ctx, ":8080", "/", mux)
 }
 
 type ProxyHandler struct {
+	logger *slog.Logger
 	// originConfigは環境変数で一度読み込まれたあとは書き換わらない
 	originConfig OriginConfig
 	Quality      int
@@ -78,14 +100,14 @@ func (ph *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	orgURL, err := url.Parse(ph.originConfig.ServerURL + path)
 	if err != nil {
 		http.Error(w, "Invalid origin URL", http.StatusBadRequest)
-		log.Printf("Invalid origin URL. %v\n", err)
+		ph.logger.ErrorContext(r.Context(), "Invalid origin URL", "error", err)
 		return
 	}
 
 	req, err := http.NewRequest("GET", orgURL.String(), nil)
 	if err != nil {
 		http.Error(w, "Request Failed", http.StatusInternalServerError)
-		log.Printf("Request Failed. %v\n", err)
+		ph.logger.ErrorContext(r.Context(), "Request Failed", "error", err)
 		return
 	}
 	req.Header.Set("User-Agent", "oyaki")
@@ -101,20 +123,20 @@ func (ph *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var orgRes *http.Response
 	pathExt := filepath.Ext(req.URL.Path)
 	if pathExt == ".webp" {
-		orgRes, err = doWebp(req)
+		orgRes, err = doWebp(ph.logger, req)
 	} else {
 		orgRes, err = client.Do(req)
 	}
 
 	if err != nil {
 		http.Error(w, "Get origin failed", http.StatusForbidden)
-		log.Printf("Get origin failed. %v\n", err)
+		ph.logger.ErrorContext(r.Context(), "Get origin failed", "error", err)
 		return
 	}
 
 	if orgRes.StatusCode == http.StatusNotFound || orgRes.StatusCode == http.StatusForbidden {
 		http.Error(w, "Get origin failed", orgRes.StatusCode)
-		log.Printf("Get origin failed. %v\n", err)
+		ph.logger.ErrorContext(r.Context(), "Get origin failed", "error", err)
 		return
 	}
 
@@ -132,7 +154,7 @@ func (ph *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if orgRes.StatusCode != http.StatusOK {
 		http.Error(w, "Get origin failed", http.StatusBadGateway)
-		log.Printf("Get origin failed. %v\n", orgRes.Status)
+		ph.logger.ErrorContext(r.Context(), "Get origin failed", "status", orgRes.Status)
 		return
 	}
 
@@ -150,7 +172,7 @@ func (ph *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// ignore already close client.
 			if !errors.Is(err, syscall.EPIPE) {
 				http.Error(w, "Read origin body failed", http.StatusInternalServerError)
-				log.Printf("Read origin body failed. %v\n", err)
+				ph.logger.ErrorContext(r.Context(), "Read origin body failed", "error", err)
 			}
 		}
 		return
@@ -160,13 +182,13 @@ func (ph *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		resBytes, err := io.ReadAll(orgRes.Body)
 		if err != nil {
 			http.Error(w, "Read origin body failed", http.StatusInternalServerError)
-			log.Printf("Read origin body failed. %v\n", err)
+			ph.logger.ErrorContext(r.Context(), "Read origin body failed", "error", err)
 			return
 		}
 
 		body := io.NopCloser(bytes.NewBuffer(resBytes))
 		defer body.Close()
-		buf, err = convWebp(body, []string{})
+		buf, err = convWebp(r.Context(), ph.logger, body, []string{})
 		if err == nil {
 			defer buf.Reset()
 			w.Header().Set("Content-Type", "image/webp")
@@ -177,7 +199,7 @@ func (ph *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			buf, err = convert(body, ph.Quality)
 			if err != nil {
 				http.Error(w, "Image convert failed", http.StatusInternalServerError)
-				log.Printf("Image convert failed. %v\n", err)
+				ph.logger.ErrorContext(r.Context(), "Image convert failed", "error", err)
 				return
 			}
 			defer buf.Reset()
@@ -187,7 +209,7 @@ func (ph *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		buf, err = convert(orgRes.Body, ph.Quality)
 		if err != nil {
 			http.Error(w, "Image convert failed", http.StatusInternalServerError)
-			log.Printf("Image convert failed. %v\n", err)
+			ph.logger.ErrorContext(r.Context(), "Image convert failed", "error", err)
 			return
 		}
 		defer buf.Reset()
@@ -199,7 +221,7 @@ func (ph *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// ignore already close client.
 		if !errors.Is(err, syscall.EPIPE) {
 			http.Error(w, "Write responce failed", http.StatusInternalServerError)
-			log.Printf("Write responce  failed. %v\n", err)
+			ph.logger.ErrorContext(r.Context(), "write response failed", "error", err)
 		}
 	}
 }
