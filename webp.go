@@ -3,14 +3,11 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"github.com/h2non/bimg"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
-	"os"
-	"os/exec"
-
-	"github.com/disintegration/imaging"
 )
 
 func doWebp(req *http.Request) (*http.Response, error) {
@@ -45,27 +42,19 @@ func doWebp(req *http.Request) (*http.Response, error) {
 }
 
 func convWebp(src io.Reader, params []string) (*bytes.Buffer, error) {
-	f, err := os.CreateTemp("/tmp", "")
+	out, err := io.ReadAll(src)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
-	defer os.Remove(f.Name())
-
-	img, err := imaging.Decode(src, imaging.AutoOrientation(true))
+	img, err := bimg.NewImage(out).AutoRotate()
 	if err != nil {
 		return nil, err
 	}
 
-	if err := imaging.Encode(f, img, imaging.JPEG); err != nil {
+	webpImg, err := bimg.NewImage(img).Convert(bimg.WEBP)
+	if err != nil {
 		return nil, err
 	}
 
-	params = append(params, "-quiet", "-mt", "-jpeg_like", f.Name(), "-o", "-")
-	out, err := exec.Command("cwebp", params...).Output()
-	if err != nil {
-		log.Println(err)
-		return nil, err
-	}
-	return bytes.NewBuffer(out), nil
+	return bytes.NewBuffer(webpImg), nil
 }
