@@ -41,7 +41,7 @@ func doWebp(req *http.Request) (*http.Response, error) {
 	return orgRes, nil
 }
 
-func convWebp(src io.Reader, params []string) (*bytes.Buffer, error) {
+func convWebp(src io.Reader) (*bytes.Buffer, error) {
 	out, err := io.ReadAll(src)
 	if err != nil {
 		return nil, err
