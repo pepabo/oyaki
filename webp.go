@@ -51,7 +51,12 @@ func convWebp(src io.Reader) (*bytes.Buffer, error) {
 		return nil, err
 	}
 
-	webpImg, err := bimg.NewImage(img).Convert(bimg.WEBP)
+	processed, err := bimg.NewImage(img).Process(bimg.Options{Quality: 75})
+	if err != nil {
+		return nil, err
+	}
+
+	webpImg, err := bimg.NewImage(processed).Convert(bimg.WEBP)
 	if err != nil {
 		return nil, err
 	}
