@@ -41,17 +41,17 @@ func doWebp(req *http.Request) (*http.Response, error) {
 	return orgRes, nil
 }
 
-func convWebp(src io.Reader) (*bytes.Buffer, error) {
+func convWebp(src io.Reader, quality int) (*bytes.Buffer, error) {
 	out, err := io.ReadAll(src)
 	if err != nil {
 		return nil, err
 	}
-	img, err := bimg.NewImage(out).AutoRotate()
-	if err != nil {
-		return nil, err
+	opts := bimg.Options{
+		Type:    bimg.WEBP,
+		Quality: quality,
+		// NoAutoRotateはデフォルトでfalseで、勝手にrotateしてくれる
 	}
-
-	webpImg, err := bimg.NewImage(img).Convert(bimg.WEBP)
+	webpImg, err := bimg.NewImage(out).Process(opts)
 	if err != nil {
 		return nil, err
 	}

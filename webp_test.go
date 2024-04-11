@@ -50,7 +50,7 @@ func TestConvJPG2WebP(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	_, err = convWebp(resp.Body)
+	_, err = convWebp(resp.Body, 90)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func BenchmarkConvJPG2WebP_bimg(b *testing.B) {
 		b.StopTimer()
 		srcBuf := bytes.NewBuffer(src)
 		b.StartTimer()
-		if _, err = convWebp(srcBuf); err != nil {
+		if _, err = convWebp(srcBuf, 90); err != nil {
 			b.Fail()
 		}
 	}
