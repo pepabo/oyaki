@@ -13,12 +13,17 @@ func convert(src io.Reader, q int) (*bytes.Buffer, error) {
 		return nil, err
 	}
 
+	// 動作検証の結果こちらは明示的にAutoRotateしないと動かなかった
+	img, err := bimg.NewImage(out).AutoRotate()
+	if err != nil {
+		return nil, err
+	}
+
 	opts := bimg.Options{
 		Type:    bimg.JPEG,
 		Quality: quality,
-		// NoAutoRotateはデフォルトでfalseで、勝手にrotateしてくれる
 	}
-	jpegImg, err := bimg.NewImage(out).Process(opts)
+	jpegImg, err := bimg.NewImage(img).Process(opts)
 	if err != nil {
 		return nil, err
 	}

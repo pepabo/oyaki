@@ -47,8 +47,9 @@ func convWebp(src io.Reader, quality int) (*bytes.Buffer, error) {
 		return nil, err
 	}
 	opts := bimg.Options{
-		Type:    bimg.WEBP,
-		Quality: quality,
+		Type:         bimg.WEBP,
+		Quality:      quality,
+		NoAutoRotate: false,
 		// NoAutoRotateはデフォルトでfalseで、勝手にrotateしてくれる
 	}
 	webpImg, err := bimg.NewImage(out).Process(opts)
