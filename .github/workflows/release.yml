@@ -8,6 +8,10 @@ on:
 jobs:
   docker:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        architecture: [amd64, arm64]
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -32,8 +36,9 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
-          build-args: OYAKI_VERSION=${{ steps.meta.outputs.version }}
+          build-args: 
+            TARGETARCH=${{ matrix.architecture }}
+            OYAKI_VERSION=${{ steps.meta.outputs.version }}
           context: .
-          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}

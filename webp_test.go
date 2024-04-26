@@ -1,24 +1,24 @@
 package main
 
 import (
+	"context"
 	"io"
+	"log/slog"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 )
 
 func TestProxyWebP(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(proxy))
-
-	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	origin, ts := setupOriginAndOyaki(func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "./testdata/oyaki.jpg")
-	}))
+	})
+	defer ts.Close()
+	defer origin.Close()
 
-	orgSrvURL = origin.URL
 	url := ts.URL + "/oyaki.jpg.webp"
 
 	req, _ := http.NewRequest("GET", url, nil)
-	resp, err := doWebp(req)
+	resp, err := doWebp(slog.New(slog.NewTextHandler(io.Discard, nil)), req)
 	if err != nil {
 		t.Fatal(err)
 	} else {
@@ -33,22 +33,21 @@ func TestProxyWebP(t *testing.T) {
 }
 
 func TestConvJPG2WebP(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(proxy))
-
-	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	origin, ts := setupOriginAndOyaki(func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "./testdata/oyaki.jpg")
-	}))
+	})
+	defer ts.Close()
+	defer origin.Close()
 
-	orgSrvURL = origin.URL
 	url := ts.URL + "/oyaki.jpg.webp"
-
+	nopLogger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	req, _ := http.NewRequest("GET", url, nil)
-	resp, err := doWebp(req)
+	resp, err := doWebp(nopLogger, req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	_, err = convWebp(resp.Body, []string{})
+	_, err = convWebp(context.Background(), nopLogger, resp.Body, []string{})
 	if err != nil {
 		t.Fatal(err)
 	}
