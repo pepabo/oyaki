@@ -5,7 +5,7 @@ ARG OYAKI_VERSION
 WORKDIR /go/src/oyaki
 COPY . /go/src/oyaki
 
-ARG TARGETARCH
+ARG TARGETARCH="arm64"
 ENV LIBWEBP_VERSION=1.3.1
 ENV BASE_URL=https://storage.googleapis.com/downloads.webmproject.org/releases/webp
 RUN apt-get update && apt-get install -y curl tar
