@@ -6,10 +6,9 @@ WORKDIR /go/src/oyaki
 COPY . /go/src/oyaki
 
 ARG TARGETARCH="arm64"
-ENV LIBWEBP_VERSION=1.3.1
-ENV BASE_URL=https://storage.googleapis.com/downloads.webmproject.org/releases/webp
 RUN apt-get update && apt-get install -y curl tar
-RUN if [ "${TARGETARCH}" = "amd64" ]; then \
+RUN apt update && apt install -y curl \
+ && if [ "${TARGETARCH}" = "amd64" ]; then \
         ARCH='amd64'; \
     elif [ "${TARGETARCH}" = "arm64" ]; then \
         ARCH='aarch64'; \
@@ -17,8 +16,8 @@ RUN if [ "${TARGETARCH}" = "amd64" ]; then \
         echo "Unsupported arch: ${TARGETARCH}"; exit 1; \
     fi && \
     curl https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-1.3.1-linux-${ARCH}.tar.gz --output libwebp.tar.gz \
-    tar -zxf libwebp.tar.gz --strip-components=1 -C /go/bin && \
-    rm libwebp.tar.gz
+ && tar vzxf libwebp.tar.gz \
+ && mv libwebp-1.3.1-linux-${ARCH}/bin/cwebp /go/bin/
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -ldflags "-s -w -X main.version=${OYAKI_VERSION}" -o /go/bin/oyaki
 
