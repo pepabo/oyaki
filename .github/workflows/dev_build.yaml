@@ -1,0 +1,12 @@
+name: "build for development"
+
+on:
+  workflow_dispatch:
+
+
+jobs:
+  build:
+    uses: takutakahashi/github-actions/.github/workflows/ghcr.yaml@main
+    with:
+      path: .
+      image: pepabo/oyaki:dev-${{ github.sha }}
