@@ -18,7 +18,7 @@ jobs:
     - name: Install Dependencies
       run: |
         sudo apt update
-        sudo apt install -y webp
+        sudo apt install -y webp libvips-dev
     - name: Setup Go
       uses: actions/setup-go@v3
       with:
