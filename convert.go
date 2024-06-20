@@ -2,13 +2,17 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"image/jpeg"
 	"io"
 
 	"github.com/disintegration/imaging"
 )
 
-func convert(src io.Reader, q int) (*bytes.Buffer, error) {
+func convert(ctx context.Context, src io.Reader, q int) (*bytes.Buffer, error) {
+	ctx, span := tracer.Start(ctx, "convert")
+	defer span.End()
+
 	img, err := imaging.Decode(src, imaging.AutoOrientation(true))
 	if err != nil {
 		return nil, err

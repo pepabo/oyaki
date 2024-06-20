@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -28,6 +29,12 @@ func main() {
 	flag.BoolVar(&ver, "version", false, "show version")
 	flag.Parse()
 
+	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	shutdown := initProvider(ctx)
+	defer cancel()
+	defer shutdown()
+
 	if ver {
 		fmt.Printf("oyaki %s\n", getVersion())
 		return
@@ -46,10 +53,17 @@ func main() {
 
 	log.Printf("starting oyaki %s\n", getVersion())
 	http.HandleFunc("/", proxy)
-	http.ListenAndServe(":8080", nil)
+
+	if err := http.ListenAndServe(":8080", nil); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func proxy(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	ctx, span := tracer.Start(ctx, "httpRequest")
+	defer span.End()
+
 	path := r.URL.RequestURI()
 	if path == "/" {
 		fmt.Fprintln(w, "Oyaki lives!")
@@ -82,7 +96,7 @@ func proxy(w http.ResponseWriter, r *http.Request) {
 	var orgRes *http.Response
 	pathExt := filepath.Ext(req.URL.Path)
 	if pathExt == ".webp" {
-		orgRes, err = doWebp(req)
+		orgRes, err = doWebp(ctx, req)
 	} else {
 		orgRes, err = client.Do(req)
 	}
@@ -147,7 +161,7 @@ func proxy(w http.ResponseWriter, r *http.Request) {
 
 		body := io.NopCloser(bytes.NewBuffer(resBytes))
 		defer body.Close()
-		buf, err = convWebp(body, []string{})
+		buf, err = convWebp(ctx, body, []string{})
 		if err == nil {
 			defer buf.Reset()
 			w.Header().Set("Content-Type", "image/webp")
@@ -155,7 +169,7 @@ func proxy(w http.ResponseWriter, r *http.Request) {
 			// if err, normally convertion will be proceeded
 			body = io.NopCloser(bytes.NewBuffer(resBytes))
 			defer body.Close()
-			buf, err = convert(body, quality)
+			buf, err = convert(ctx, body, quality)
 			if err != nil {
 				http.Error(w, "Image convert failed", http.StatusInternalServerError)
 				log.Printf("Image convert failed. %v\n", err)
@@ -165,7 +179,7 @@ func proxy(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "image/jpeg")
 		}
 	} else {
-		buf, err = convert(orgRes.Body, quality)
+		buf, err = convert(ctx, orgRes.Body, quality)
 		if err != nil {
 			http.Error(w, "Image convert failed", http.StatusInternalServerError)
 			log.Printf("Image convert failed. %v\n", err)
