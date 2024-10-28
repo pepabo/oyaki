@@ -147,7 +147,7 @@ func proxy(w http.ResponseWriter, r *http.Request) {
 
 		body := io.NopCloser(bytes.NewBuffer(resBytes))
 		defer body.Close()
-		buf, err = convWebp(body, []string{})
+		buf, err = convWebp(body, quality)
 		if err == nil {
 			defer buf.Reset()
 			w.Header().Set("Content-Type", "image/webp")

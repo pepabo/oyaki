@@ -3,14 +3,11 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"github.com/h2non/bimg"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
-	"os"
-	"os/exec"
-
-	"github.com/disintegration/imaging"
 )
 
 func doWebp(req *http.Request) (*http.Response, error) {
@@ -44,28 +41,21 @@ func doWebp(req *http.Request) (*http.Response, error) {
 	return orgRes, nil
 }
 
-func convWebp(src io.Reader, params []string) (*bytes.Buffer, error) {
-	f, err := os.CreateTemp("/tmp", "")
+func convWebp(src io.Reader, quality int) (*bytes.Buffer, error) {
+	out, err := io.ReadAll(src)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
-	defer os.Remove(f.Name())
-
-	img, err := imaging.Decode(src, imaging.AutoOrientation(true))
+	opts := bimg.Options{
+		Type:         bimg.WEBP,
+		Quality:      quality,
+		NoAutoRotate: false,
+		// NoAutoRotateはデフォルトでfalseで、勝手にrotateしてくれる
+	}
+	webpImg, err := bimg.NewImage(out).Process(opts)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := imaging.Encode(f, img, imaging.JPEG); err != nil {
-		return nil, err
-	}
-
-	params = append(params, "-quiet", "-mt", "-jpeg_like", f.Name(), "-o", "-")
-	out, err := exec.Command("cwebp", params...).Output()
-	if err != nil {
-		log.Println(err)
-		return nil, err
-	}
-	return bytes.NewBuffer(out), nil
+	return bytes.NewBuffer(webpImg), nil
 }
