@@ -51,6 +51,10 @@ func convWebp(src io.Reader, quality int) (*bytes.Buffer, error) {
 		Quality:      quality,
 		NoAutoRotate: false,
 		// NoAutoRotateはデフォルトでfalseで、勝手にrotateしてくれる
+
+		// Safariなどでは、bimgによってEXIFの回転処理を実施したあとにブラウザ側でEXIFを読んで再度回転してしまうことがあるので、
+		// EXIFは削除する
+		StripMetadata: true,
 	}
 	webpImg, err := bimg.NewImage(out).Process(opts)
 	if err != nil {
