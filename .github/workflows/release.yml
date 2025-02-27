@@ -7,7 +7,14 @@ on:
 
 jobs:
   docker:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+        - os: ubuntu-latest
+          platform: linux/amd64
+        - os: ubuntu-24.04-arm
+          platform: linux/arm64
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,9 +25,6 @@ jobs:
         with:
           images: |
             ghcr.io/pepabo/oyaki
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -37,6 +41,6 @@ jobs:
         with:
           build-args: OYAKI_VERSION=${{ steps.meta.outputs.version }}
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.platform }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
