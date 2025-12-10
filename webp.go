@@ -57,8 +57,6 @@ func convWebp(src io.Reader, quality int) (*bytes.Buffer, error) {
 		StripMetadata: true,
 	}
 	webpImg, err := bimg.NewImage(out).Process(opts)
-	// libvipsのキャッシュをクリアしてメモリリークを防ぐ
-	bimg.VipsCacheDropAll()
 	if err != nil {
 		return nil, err
 	}
