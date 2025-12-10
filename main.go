@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	_ "net/http/pprof"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -45,8 +46,18 @@ func main() {
 	}
 
 	log.Printf("starting oyaki %s\n", getVersion())
-	http.HandleFunc("/", proxy)
-	http.ListenAndServe(":8080", nil)
+
+	// pprof サーバーを localhost:6060 で起動
+	go func() {
+		log.Println("starting pprof server on localhost:6060")
+		if err := http.ListenAndServe("127.0.0.1:6060", nil); err != nil {
+			log.Printf("pprof server error: %v\n", err)
+		}
+	}()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", proxy)
+	http.ListenAndServe(":8080", mux)
 }
 
 func proxy(w http.ResponseWriter, r *http.Request) {
