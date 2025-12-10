@@ -16,6 +16,7 @@ func convert(src io.Reader, q int) (*bytes.Buffer, error) {
 	// 動作検証の結果こちらは明示的にAutoRotateしないと動かなかった
 	img, err := bimg.NewImage(out).AutoRotate()
 	if err != nil {
+		bimg.VipsCacheDropAll()
 		return nil, err
 	}
 
@@ -24,6 +25,8 @@ func convert(src io.Reader, q int) (*bytes.Buffer, error) {
 		Quality: quality,
 	}
 	jpegImg, err := bimg.NewImage(img).Process(opts)
+	// libvipsのキャッシュをクリアしてメモリリークを防ぐ
+	bimg.VipsCacheDropAll()
 	if err != nil {
 		return nil, err
 	}
