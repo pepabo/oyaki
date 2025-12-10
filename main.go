@@ -16,6 +16,8 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+
+	"github.com/h2non/bimg"
 )
 
 var client http.Client
@@ -33,6 +35,14 @@ func main() {
 		fmt.Printf("oyaki %s\n", getVersion())
 		return
 	}
+
+	// libvips を初期化
+	bimg.Initialize()
+	defer bimg.Shutdown()
+
+	// キャッシュを無効化してメモリリークを防ぐ
+	bimg.VipsCacheSetMax(0)
+	bimg.VipsCacheSetMaxMem(0)
 
 	orgScheme := os.Getenv("OYAKI_ORIGIN_SCHEME")
 	orgHost := os.Getenv("OYAKI_ORIGIN_HOST")
