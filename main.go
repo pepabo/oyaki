@@ -20,7 +20,7 @@ import (
 	"github.com/h2non/bimg"
 )
 
-var client http.Client
+var client *http.Client
 var orgSrvURL string
 var quality = 90
 var version = ""
@@ -43,6 +43,16 @@ func main() {
 	// キャッシュを無効化してメモリリークを防ぐ
 	bimg.VipsCacheSetMax(0)
 	bimg.VipsCacheSetMaxMem(0)
+
+	// HTTP Client の設定（goroutine リーク防止）
+	client = &http.Client{
+		Transport: &http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 100,
+			IdleConnTimeout:     90 * time.Second,
+		},
+		Timeout: 30 * time.Second,
+	}
 
 	orgScheme := os.Getenv("OYAKI_ORIGIN_SCHEME")
 	orgHost := os.Getenv("OYAKI_ORIGIN_HOST")
@@ -114,13 +124,13 @@ func proxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	defer orgRes.Body.Close()
+
 	if orgRes.StatusCode == http.StatusNotFound || orgRes.StatusCode == http.StatusForbidden {
 		http.Error(w, "Get origin failed", orgRes.StatusCode)
 		log.Printf("Get origin failed. %v\n", err)
 		return
 	}
-
-	defer orgRes.Body.Close()
 	if orgRes.Header.Get("Last-Modified") != "" {
 		w.Header().Set("Last-Modified", orgRes.Header.Get("Last-Modified"))
 	} else {
