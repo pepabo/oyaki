@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -68,12 +70,21 @@ func main() {
 	// 30 秒ごとに CGo (libvips/glibc) 側のメモリを OS に返す。
 	// Go の GC では CGo メモリは回収できないため malloc_trim と
 	// debug.FreeOSMemory を組み合わせて RSS の増大を抑制する。
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
-		for range ticker.C {
-			mallocTrim()
-			debug.FreeOSMemory()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				mallocTrim()
+				debug.FreeOSMemory()
+			}
 		}
 	}()
 
@@ -101,6 +112,9 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", proxy)
 	http.ListenAndServe(":8080", mux)
+
+	cancel()
+	wg.Wait()
 }
 
 func proxy(w http.ResponseWriter, r *http.Request) {
