@@ -3,11 +3,11 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"github.com/h2non/bimg"
-	"io"
 	"log"
 	"net/http"
 	"net/url"
+
+	"github.com/h2non/bimg"
 )
 
 func doWebp(req *http.Request) (*http.Response, error) {
@@ -41,11 +41,7 @@ func doWebp(req *http.Request) (*http.Response, error) {
 	return orgRes, nil
 }
 
-func convWebp(src io.Reader, quality int) (*bytes.Buffer, error) {
-	out, err := io.ReadAll(src)
-	if err != nil {
-		return nil, err
-	}
+func convWebp(src []byte, quality int) (*bytes.Buffer, error) {
 	opts := bimg.Options{
 		Type:         bimg.WEBP,
 		Quality:      quality,
@@ -56,7 +52,7 @@ func convWebp(src io.Reader, quality int) (*bytes.Buffer, error) {
 		// EXIFは削除する
 		StripMetadata: true,
 	}
-	webpImg, err := bimg.NewImage(out).Process(opts)
+	webpImg, err := bimg.NewImage(src).Process(opts)
 	if err != nil {
 		return nil, err
 	}

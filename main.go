@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"runtime/debug"
 	"strconv"
 	"syscall"
@@ -20,7 +21,17 @@ import (
 	"github.com/h2non/bimg"
 )
 
-var client http.Client
+var client = &http.Client{
+	Timeout: 30 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   100,
+		MaxConnsPerHost:       50,
+		IdleConnTimeout:       30 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second,
+	},
+}
 var orgSrvURL string
 var quality = 90
 var version = ""
@@ -43,6 +54,28 @@ func main() {
 	// キャッシュを無効化してメモリリークを防ぐ
 	bimg.VipsCacheSetMax(0)
 	bimg.VipsCacheSetMaxMem(0)
+
+	// libvips の並行スレッド数を制限する。
+	// デフォルトは CPU コア数だが、スレッドローカルなメモリが glibc malloc に
+	// 蓄積して RSS が膨張するため、コア数の半分に抑える。
+	concurrency := runtime.NumCPU() / 2
+	if concurrency < 1 {
+		concurrency = 1
+	}
+	setVipsConcurrency(concurrency)
+	log.Printf("libvips concurrency: %d", concurrency)
+
+	// 30 秒ごとに CGo (libvips/glibc) 側のメモリを OS に返す。
+	// Go の GC では CGo メモリは回収できないため malloc_trim と
+	// debug.FreeOSMemory を組み合わせて RSS の増大を抑制する。
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			mallocTrim()
+			debug.FreeOSMemory()
+		}
+	}()
 
 	orgScheme := os.Getenv("OYAKI_ORIGIN_SCHEME")
 	orgHost := os.Getenv("OYAKI_ORIGIN_HOST")
@@ -157,26 +190,22 @@ func proxy(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	resBytes, err := io.ReadAll(orgRes.Body)
+	if err != nil {
+		http.Error(w, "Read origin body failed", http.StatusInternalServerError)
+		log.Printf("Read origin body failed. %v\n", err)
+		return
+	}
+
 	var buf *bytes.Buffer
 	if pathExt == ".webp" {
-		resBytes, err := io.ReadAll(orgRes.Body)
-		if err != nil {
-			http.Error(w, "Read origin body failed", http.StatusInternalServerError)
-			log.Printf("Read origin body failed. %v\n", err)
-			return
-		}
-
-		body := io.NopCloser(bytes.NewBuffer(resBytes))
-		defer body.Close()
-		buf, err = convWebp(body, quality)
+		buf, err = convWebp(resBytes, quality)
 		if err == nil {
 			defer buf.Reset()
 			w.Header().Set("Content-Type", "image/webp")
 		} else {
 			// if err, normally convertion will be proceeded
-			body = io.NopCloser(bytes.NewBuffer(resBytes))
-			defer body.Close()
-			buf, err = convert(body, quality)
+			buf, err = convert(resBytes, quality)
 			if err != nil {
 				http.Error(w, "Image convert failed", http.StatusInternalServerError)
 				log.Printf("Image convert failed. %v\n", err)
@@ -186,7 +215,7 @@ func proxy(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "image/jpeg")
 		}
 	} else {
-		buf, err = convert(orgRes.Body, quality)
+		buf, err = convert(resBytes, quality)
 		if err != nil {
 			http.Error(w, "Image convert failed", http.StatusInternalServerError)
 			log.Printf("Image convert failed. %v\n", err)
