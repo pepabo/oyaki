@@ -3,6 +3,7 @@
 package main
 
 /*
+#cgo pkg-config: vips
 #include <malloc.h>
 #include <vips/vips.h>
 */
