@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/h2non/bimg"
+	"github.com/davidbyttow/govips/v2/vips"
 )
 
 func doWebp(req *http.Request) (*http.Response, error) {
@@ -42,20 +42,27 @@ func doWebp(req *http.Request) (*http.Response, error) {
 }
 
 func convWebp(src []byte, quality int) (*bytes.Buffer, error) {
-	opts := bimg.Options{
-		Type:         bimg.WEBP,
-		Quality:      quality,
-		NoAutoRotate: false,
-		// NoAutoRotateはデフォルトでfalseで、勝手にrotateしてくれる
-
-		// Safariなどでは、bimgによってEXIFの回転処理を実施したあとにブラウザ側でEXIFを読んで再度回転してしまうことがあるので、
-		// EXIFは削除する
-		StripMetadata: true,
+	img, err := vips.NewImageFromBuffer(src)
+	if err != nil {
+		return nil, err
 	}
-	webpImg, err := bimg.NewImage(src).Process(opts)
+	defer img.Close()
+
+	// govipsはProcess時に自動回転しないため明示的に呼ぶ必要がある
+	if err := img.AutoRotate(); err != nil {
+		return nil, err
+	}
+
+	ep := vips.NewWebpExportParams()
+	ep.Quality = quality
+	// Safariなどでは、EXIFの回転処理を実施したあとにブラウザ側でEXIFを読んで再度回転してしまうことがあるので、
+	// EXIFは削除する
+	ep.StripMetadata = true
+
+	buf, _, err := img.ExportWebp(ep)
 	if err != nil {
 		return nil, err
 	}
 
-	return bytes.NewBuffer(webpImg), nil
+	return bytes.NewBuffer(buf), nil
 }

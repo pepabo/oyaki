@@ -20,7 +20,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/h2non/bimg"
+	"github.com/davidbyttow/govips/v2/vips"
 )
 
 var client = &http.Client{
@@ -49,14 +49,6 @@ func main() {
 		return
 	}
 
-	// libvips を初期化
-	bimg.Initialize()
-	defer bimg.Shutdown()
-
-	// キャッシュを無効化してメモリリークを防ぐ
-	bimg.VipsCacheSetMax(0)
-	bimg.VipsCacheSetMaxMem(0)
-
 	// libvips の並行スレッド数を制限する。
 	// デフォルトは CPU コア数だが、スレッドローカルなメモリが glibc malloc に
 	// 蓄積して RSS が膨張するため、コア数の半分に抑える。
@@ -64,12 +56,20 @@ func main() {
 	if concurrency < 1 {
 		concurrency = 1
 	}
-	setVipsConcurrency(concurrency)
+
+	// libvips を初期化。キャッシュを無効化してメモリリークを防ぐ。
+	if err := vips.Startup(&vips.Config{
+		ConcurrencyLevel: concurrency,
+		MaxCacheFiles:    0,
+		MaxCacheMem:      0,
+		MaxCacheSize:     0,
+	}); err != nil {
+		log.Fatalf("failed to start libvips: %v", err)
+	}
+	defer vips.Shutdown()
 	log.Printf("libvips concurrency: %d", concurrency)
 
-	// 30 秒ごとに CGo (libvips/glibc) 側のメモリを OS に返す。
-	// Go の GC では CGo メモリは回収できないため malloc_trim と
-	// debug.FreeOSMemory を組み合わせて RSS の増大を抑制する。
+	// 30 秒ごとに Go ヒープを OS に返す。
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -82,7 +82,6 @@ func main() {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				mallocTrim()
 				debug.FreeOSMemory()
 			}
 		}
