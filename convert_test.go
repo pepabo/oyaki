@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/h2non/bimg"
+	"github.com/davidbyttow/govips/v2/vips"
 )
 
 func TestConvertOutputIsJPEG(t *testing.T) {
@@ -60,18 +60,19 @@ func TestConvertAutoRotate(t *testing.T) {
 	}
 
 	out := buf.Bytes()
-	meta, err := bimg.NewImage(out).Metadata()
+	img, err := vips.NewImageFromBuffer(out)
 	if err != nil {
-		t.Fatalf("bimg.Metadata failed: %v", err)
+		t.Fatalf("vips.NewImageFromBuffer failed: %v", err)
 	}
+	defer img.Close()
 
-	if meta.Size.Width == 0 || meta.Size.Height == 0 {
-		t.Errorf("metadata size is zero: %+v", meta.Size)
+	if img.Width() == 0 || img.Height() == 0 {
+		t.Errorf("image size is zero: %dx%d", img.Width(), img.Height())
 	}
 
 	// oyaki.jpg is already orientation=1 (upper-left), so it should remain 1 after AutoRotate.
-	if meta.Orientation != 1 {
-		t.Errorf("expected orientation 1, got %d", meta.Orientation)
+	if orient := img.Orientation(); orient != 1 {
+		t.Errorf("expected orientation 1, got %d", orient)
 	}
 }
 
@@ -81,12 +82,13 @@ func TestConvertAutoRotate(t *testing.T) {
 func TestConvertAutoRotateExif(t *testing.T) {
 	src := readTestFile(t, "./testdata/color_pattern_rot6.jpg")
 
-	origMeta, err := bimg.NewImage(src).Metadata()
+	origImg, err := vips.NewImageFromBuffer(src)
 	if err != nil {
-		t.Fatalf("original metadata: %v", err)
+		t.Fatalf("original image: %v", err)
 	}
-	if origMeta.Orientation != 6 {
-		t.Fatalf("precondition: expected orientation=6, got %d", origMeta.Orientation)
+	defer origImg.Close()
+	if origImg.Orientation() != 6 {
+		t.Fatalf("precondition: expected orientation=6, got %d", origImg.Orientation())
 	}
 
 	buf, err := convert(src, 90)
@@ -94,18 +96,19 @@ func TestConvertAutoRotateExif(t *testing.T) {
 		t.Fatalf("convert: %v", err)
 	}
 
-	outMeta, err := bimg.NewImage(buf.Bytes()).Metadata()
+	outImg, err := vips.NewImageFromBuffer(buf.Bytes())
 	if err != nil {
-		t.Fatalf("output metadata: %v", err)
+		t.Fatalf("output image: %v", err)
 	}
+	defer outImg.Close()
 
 	// AutoRotate 後は orientation が 1 (upper-left) になること
-	if outMeta.Orientation != 1 {
-		t.Errorf("orientation after AutoRotate = %d, want 1", outMeta.Orientation)
+	if outImg.Orientation() != 1 {
+		t.Errorf("orientation after AutoRotate = %d, want 1", outImg.Orientation())
 	}
 	// 600x800 + orientation=6 → AutoRotate で 800x600 になること
-	if outMeta.Size.Width != 800 || outMeta.Size.Height != 600 {
-		t.Errorf("size after AutoRotate = %dx%d, want 800x600", outMeta.Size.Width, outMeta.Size.Height)
+	if outImg.Width() != 800 || outImg.Height() != 600 {
+		t.Errorf("size after AutoRotate = %dx%d, want 800x600", outImg.Width(), outImg.Height())
 	}
 }
 

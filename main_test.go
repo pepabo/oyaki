@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/h2non/bimg"
+	"github.com/davidbyttow/govips/v2/vips"
 )
 
 func TestRoot(t *testing.T) {
@@ -648,12 +648,13 @@ func TestProxyColorPatternRot6WebP(t *testing.T) {
 	}
 
 	// orientation=6 (600x800) → AutoRotate → 800x600 になること
-	meta, err := bimg.NewImage(body).Metadata()
+	img, err := vips.NewImageFromBuffer(body)
 	if err != nil {
-		t.Fatalf("metadata: %v", err)
+		t.Fatalf("vips.NewImageFromBuffer failed: %v", err)
 	}
-	if meta.Size.Width != 800 || meta.Size.Height != 600 {
-		t.Errorf("size = %dx%d, want 800x600", meta.Size.Width, meta.Size.Height)
+	defer img.Close()
+	if img.Width() != 800 || img.Height() != 600 {
+		t.Errorf("size = %dx%d, want 800x600", img.Width(), img.Height())
 	}
 }
 

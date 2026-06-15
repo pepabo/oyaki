@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/h2non/bimg"
+	"github.com/davidbyttow/govips/v2/vips"
 )
 
 func TestProxyWebP(t *testing.T) {
@@ -85,16 +85,15 @@ func TestConvWebpStripMetadata(t *testing.T) {
 		t.Fatalf("convWebp failed: %v", err)
 	}
 
-	meta, err := bimg.NewImage(buf.Bytes()).Metadata()
+	img, err := vips.NewImageFromBuffer(buf.Bytes())
 	if err != nil {
-		t.Fatalf("bimg.Metadata failed: %v", err)
+		t.Fatalf("vips.NewImageFromBuffer failed: %v", err)
 	}
+	defer img.Close()
 
-	// StripMetadata: true means EXIF should be empty/zeroed.
-	exif := meta.EXIF
-	empty := bimg.EXIF{}
-	if exif != empty {
-		t.Errorf("expected EXIF to be empty after StripMetadata, got %+v", exif)
+	// StripMetadata: true means EXIF orientation tag should be absent (0).
+	if orient := img.Orientation(); orient != 0 {
+		t.Errorf("expected EXIF orientation to be stripped (0), got %d", orient)
 	}
 }
 
@@ -115,12 +114,13 @@ func TestConvWebpColorPatternOutputIsWebP(t *testing.T) {
 func TestConvWebpColorPatternRot6AutoRotate(t *testing.T) {
 	src := readTestFile(t, "./testdata/color_pattern_rot6.jpg")
 
-	origMeta, err := bimg.NewImage(src).Metadata()
+	origImg, err := vips.NewImageFromBuffer(src)
 	if err != nil {
-		t.Fatalf("original metadata: %v", err)
+		t.Fatalf("original image: %v", err)
 	}
-	if origMeta.Orientation != 6 {
-		t.Fatalf("precondition: expected orientation=6, got %d", origMeta.Orientation)
+	defer origImg.Close()
+	if origImg.Orientation() != 6 {
+		t.Fatalf("precondition: expected orientation=6, got %d", origImg.Orientation())
 	}
 
 	buf, err := convWebp(src, 90)
@@ -131,13 +131,14 @@ func TestConvWebpColorPatternRot6AutoRotate(t *testing.T) {
 		t.Errorf("output is not a valid WebP")
 	}
 
-	outMeta, err := bimg.NewImage(buf.Bytes()).Metadata()
+	outImg, err := vips.NewImageFromBuffer(buf.Bytes())
 	if err != nil {
-		t.Fatalf("output metadata: %v", err)
+		t.Fatalf("output image: %v", err)
 	}
+	defer outImg.Close()
 	// 600x800 + orientation=6 → AutoRotate で 800x600 になること
-	if outMeta.Size.Width != 800 || outMeta.Size.Height != 600 {
-		t.Errorf("size after convWebp = %dx%d, want 800x600", outMeta.Size.Width, outMeta.Size.Height)
+	if outImg.Width() != 800 || outImg.Height() != 600 {
+		t.Errorf("size after convWebp = %dx%d, want 800x600", outImg.Width(), outImg.Height())
 	}
 }
 
@@ -151,7 +152,7 @@ func BenchmarkConvWebP(b *testing.B) {
 	}
 }
 
-func BenchmarkConvJPG2WebP_bimg(b *testing.B) {
+func BenchmarkConvJPG2WebP(b *testing.B) {
 	f, err := os.Open("./testdata/oyaki.jpg")
 	if err != nil {
 		b.Fatal("failed to open testdata")

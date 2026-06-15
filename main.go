@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -16,7 +15,6 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strconv"
-	"sync"
 	"syscall"
 	"time"
 
@@ -69,24 +67,6 @@ func main() {
 	defer vips.Shutdown()
 	log.Printf("libvips concurrency: %d", concurrency)
 
-	// 30 秒ごとに Go ヒープを OS に返す。
-	ctx, cancel := context.WithCancel(context.Background())
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		ticker := time.NewTicker(30 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				debug.FreeOSMemory()
-			}
-		}
-	}()
-
 	orgScheme := os.Getenv("OYAKI_ORIGIN_SCHEME")
 	orgHost := os.Getenv("OYAKI_ORIGIN_HOST")
 	if orgScheme == "" {
@@ -111,9 +91,6 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", proxy)
 	http.ListenAndServe(":8080", mux)
-
-	cancel()
-	wg.Wait()
 }
 
 func proxy(w http.ResponseWriter, r *http.Request) {
