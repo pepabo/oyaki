@@ -22,7 +22,7 @@ jobs:
     - name: Install Dependencies
       run: |
         sudo apt update
-        sudo apt install -y webp libvips-dev
+        sudo apt install -y webp libvips-dev libglib2.0-dev
     - name: Setup Go
       uses: actions/setup-go@v5
       with:
