@@ -42,7 +42,8 @@ func doWebp(req *http.Request) (*http.Response, error) {
 }
 
 func convWebp(src []byte, quality int) (*bytes.Buffer, error) {
-	img, err := vips.NewImageFromBuffer(src)
+	// convert() と同様、orientation に応じて sequential/random を出し分けてメモリを抑える(OOM 対策)。
+	img, err := loadImage(src)
 	if err != nil {
 		return nil, err
 	}
