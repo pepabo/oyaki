@@ -3,11 +3,11 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"github.com/h2non/bimg"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
-
-	"github.com/davidbyttow/govips/v2/vips"
 )
 
 func doWebp(req *http.Request) (*http.Response, error) {
@@ -41,29 +41,25 @@ func doWebp(req *http.Request) (*http.Response, error) {
 	return orgRes, nil
 }
 
-func convWebp(src []byte, quality int) (*bytes.Buffer, error) {
-	// convert() と同様、orientation に応じて sequential/random を出し分けてメモリを抑える(OOM 対策)。
-	img, err := loadImage(src)
+func convWebp(src io.Reader, quality int) (*bytes.Buffer, error) {
+	out, err := io.ReadAll(src)
 	if err != nil {
 		return nil, err
 	}
-	defer img.Close()
+	opts := bimg.Options{
+		Type:         bimg.WEBP,
+		Quality:      quality,
+		NoAutoRotate: false,
+		// NoAutoRotateはデフォルトでfalseで、勝手にrotateしてくれる
 
-	// govipsはProcess時に自動回転しないため明示的に呼ぶ必要がある
-	if err := img.AutoRotate(); err != nil {
-		return nil, err
+		// Safariなどでは、bimgによってEXIFの回転処理を実施したあとにブラウザ側でEXIFを読んで再度回転してしまうことがあるので、
+		// EXIFは削除する
+		StripMetadata: true,
 	}
-
-	ep := vips.NewWebpExportParams()
-	ep.Quality = quality
-	// Safariなどでは、EXIFの回転処理を実施したあとにブラウザ側でEXIFを読んで再度回転してしまうことがあるので、
-	// EXIFは削除する
-	ep.StripMetadata = true
-
-	buf, _, err := img.ExportWebp(ep)
+	webpImg, err := bimg.NewImage(out).Process(opts)
 	if err != nil {
 		return nil, err
 	}
 
-	return bytes.NewBuffer(buf), nil
+	return bytes.NewBuffer(webpImg), nil
 }
